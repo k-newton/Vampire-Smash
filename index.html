@@ -1,0 +1,62 @@
+<!-- 
+Created: Initial HTML structure for the Burrito Bison-inspired game.
+Updated: Fixed script loading order to resolve reference errors.
+Further Updated: Changed game title to "Vampire Smash" and simplifying to use the standalone game version.
+This file serves as the entry point and loads the standalone game version.
+Updated: [2025-03-11 00:50] - Added to GitHub repository
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vampire Smash</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #2c3e50;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: white;
+        }
+        h1 {
+            color: #f1c40f;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            margin-bottom: 20px;
+        }
+        .game-frame {
+            width: 800px;
+            height: 600px;
+            border: none;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+        .instructions {
+            margin-top: 20px;
+            text-align: center;
+            max-width: 800px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Vampire Smash</h1>
+        <iframe class="game-frame" src="vampire-smash.html"></iframe>
+        <div class="instructions">
+            <p><strong>How to Play:</strong> Pull back and release to launch your vampire. Click during flight to stomp.</p>
+        </div>
+    </div>
+</body>
+</html> 
