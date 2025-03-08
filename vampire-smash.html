@@ -1,0 +1,2679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vampire Smash - Symphony of Destruction</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #2c3e50;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        #game-container {
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+        .loading-message {
+            color: white;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            text-align: center;
+        }
+    </style>
+    <!-- Phaser CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
+</head>
+<body>
+    <div class="loading-message">Loading game, please wait...</div>
+    <div id="game-container"></div>
+
+    <script>
+        console.log('Standalone game script started');
+        
+        // Wait for Phaser to load
+        window.onload = function() {
+            // Remove loading message once Phaser is ready
+            document.querySelector('.loading-message').style.display = 'none';
+            
+            // Game data
+            var gameData = {
+                currency: 0,
+                maxDistance: 0,
+                level: 1,
+                upgrades: {
+                    power: 1,
+                    bounce: 1,
+                    stompPower: 1,
+                    stompCooldown: 1
+                }
+            };
+            
+            // Load saved data if available
+            if (localStorage.getItem('luchadorLaunchData')) {
+                try {
+                    const savedData = JSON.parse(localStorage.getItem('luchadorLaunchData'));
+                    gameData = savedData;
+                    console.log('Game data loaded:', gameData);
+                } catch (e) {
+                    console.error('Failed to parse saved game data:', e);
+                }
+            }
+            
+            // Save game data function
+            function saveGameData() {
+                localStorage.setItem('luchadorLaunchData', JSON.stringify(gameData));
+                console.log('Game data saved:', gameData);
+            }
+            
+            // ---- GAME SCENES ----
+            
+            // MenuScene - Main menu with start button
+            class MenuScene extends Phaser.Scene {
+                constructor() {
+                    super('MenuScene');
+                }
+                
+                preload() {
+                    console.log('MenuScene: preload started');
+                    this.createPlaceholderTextures();
+                    this.createMultiColorGummies();
+                }
+                
+                createPlaceholderTextures() {
+                    console.log('Creating placeholder textures...');
+                    
+                    // Create background texture (gothic castle theme - dark blue to black gradient)
+                    this.createGradientTexture('background', 800, 600, ['#1a1a3a', '#000000']);
+                    
+                    // Create a castlevania-inspired background with moon
+                    this.createCastlevaniaBackground('castleBackground', 800, 600);
+                    
+                    // Create Castlevania-inspired character
+                    this.createBelmonTexture();
+                    
+                    this.createCircleTexture('ring', 100, 0xdd3333);
+                    this.createRectTexture('ground', 800, 40, 0x8B4513);
+                    
+                    // Create enemy textures
+                    this.createRoundedRectTexture('enemyRegular', 50, 50, 0xe74c3c, 25);
+                    this.createRoundedRectTexture('enemyBouncy', 50, 50, 0xf39c12, 25);
+                    this.createRoundedRectTexture('enemySpecial', 50, 50, 0x9b59b6, 25);
+                    
+                    // Create other game textures
+                    this.createRoundedRectTexture('door', 100, 150, 0x3498db, 10);
+                    this.createCircleTexture('particle', 8, 0xffffff);
+                    this.createCastleShopBackground('shopBackground', 800, 600);
+                    
+                    console.log('All placeholder textures created successfully!');
+                }
+                
+                createGradientTexture(key, width, height, colorStops) {
+                    // Check if texture already exists
+                    if (this.textures.exists(key)) {
+                        console.log(`Texture ${key} already exists, skipping creation`);
+                        return;
+                    }
+                    
+                    try {
+                        const canvas = this.textures.createCanvas(key, width, height);
+                        if (!canvas) {
+                            console.error(`Failed to create canvas for texture ${key}`);
+                            return;
+                        }
+                        
+                        const context = canvas.getContext('2d');
+                        if (!context) {
+                            console.error(`Failed to get 2D context for texture ${key}`);
+                            return;
+                        }
+                        
+                        const gradient = context.createLinearGradient(0, 0, 0, height);
+                        colorStops.forEach((color, index) => {
+                            gradient.addColorStop(index / (colorStops.length - 1), color);
+                        });
+                        
+                        context.fillStyle = gradient;
+                        context.fillRect(0, 0, width, height);
+                        
+                        canvas.refresh();
+                    } catch (e) {
+                        console.error(`Error in createGradientTexture for ${key}:`, e);
+                    }
+                }
+                
+                createCircleTexture(key, radius, color) {
+                    // Check if texture already exists
+                    if (this.textures.exists(key)) {
+                        console.log(`Texture ${key} already exists, skipping creation`);
+                        return;
+                    }
+
+                    try {
+                        const canvas = this.textures.createCanvas(key, radius * 2, radius * 2);
+                        if (!canvas) {
+                            console.error(`Failed to create canvas for texture ${key}`);
+                            return;
+                        }
+                        
+                        const context = canvas.getContext('2d');
+                        if (!context) {
+                            console.error(`Failed to get 2D context for texture ${key}`);
+                            return;
+                        }
+                        
+                        context.beginPath();
+                        context.arc(radius, radius, radius, 0, Math.PI * 2);
+                        context.fillStyle = this.colorToHex(color);
+                        context.fill();
+                        
+                        canvas.refresh();
+                    } catch (e) {
+                        console.error(`Error in createCircleTexture for ${key}:`, e);
+                    }
+                }
+                
+                createRectTexture(key, width, height, color) {
+                    // Check if texture already exists
+                    if (this.textures.exists(key)) {
+                        console.log(`Texture ${key} already exists, skipping creation`);
+                        return;
+                    }
+                    
+                    try {
+                        const canvas = this.textures.createCanvas(key, width, height);
+                        if (!canvas) {
+                            console.error(`Failed to create canvas for texture ${key}`);
+                            return;
+                        }
+                        
+                        const context = canvas.getContext('2d');
+                        if (!context) {
+                            console.error(`Failed to get 2D context for texture ${key}`);
+                            return;
+                        }
+                        
+                        context.fillStyle = this.colorToHex(color);
+                        context.fillRect(0, 0, width, height);
+                        
+                        canvas.refresh();
+                    } catch (e) {
+                        console.error(`Error in createRectTexture for ${key}:`, e);
+                    }
+                }
+                
+                createRoundedRectTexture(key, width, height, color, radius) {
+                    // Check if texture already exists
+                    if (this.textures.exists(key)) {
+                        console.log(`Texture ${key} already exists, skipping creation`);
+                        return;
+                    }
+                    
+                    try {
+                        const canvas = this.textures.createCanvas(key, width, height);
+                        if (!canvas) {
+                            console.error(`Failed to create canvas for texture ${key}`);
+                            return;
+                        }
+                        
+                        const context = canvas.getContext('2d');
+                        if (!context) {
+                            console.error(`Failed to get 2D context for texture ${key}`);
+                            return;
+                        }
+                        
+                        context.beginPath();
+                        context.moveTo(radius, 0);
+                        context.lineTo(width - radius, 0);
+                        context.quadraticCurveTo(width, 0, width, radius);
+                        context.lineTo(width, height - radius);
+                        context.quadraticCurveTo(width, height, width - radius, height);
+                        context.lineTo(radius, height);
+                        context.quadraticCurveTo(0, height, 0, height - radius);
+                        context.lineTo(0, radius);
+                        context.quadraticCurveTo(0, 0, radius, 0);
+                        context.closePath();
+                        
+                        context.fillStyle = this.colorToHex(color);
+                        context.fill();
+                        
+                        canvas.refresh();
+                    } catch (e) {
+                        console.error(`Error in createRoundedRectTexture for ${key}:`, e);
+                    }
+                }
+                
+                createPatternTexture(key, width, height, backgroundColor) {
+                    // Check if texture already exists
+                    if (this.textures.exists(key)) {
+                        console.log(`Texture ${key} already exists, skipping creation`);
+                        return;
+                    }
+                    
+                    try {
+                        const canvas = this.textures.createCanvas(key, width, height);
+                        if (!canvas) {
+                            console.error(`Failed to create canvas for texture ${key}`);
+                            return;
+                        }
+                        
+                        const context = canvas.getContext('2d');
+                        if (!context) {
+                            console.error(`Failed to get 2D context for texture ${key}`);
+                            return;
+                        }
+                        
+                        // Fill background
+                        context.fillStyle = this.colorToHex(backgroundColor);
+                        context.fillRect(0, 0, width, height);
+                        
+                        // Add a subtle pattern
+                        context.fillStyle = 'rgba(255, 255, 255, 0.05)';
+                        for (let x = 0; x < width; x += 20) {
+                            for (let y = 0; y < height; y += 20) {
+                                context.fillRect(x, y, 10, 10);
+                            }
+                        }
+                        
+                        canvas.refresh();
+                    } catch (e) {
+                        console.error(`Error in createPatternTexture for ${key}:`, e);
+                    }
+                }
+                
+                createCastlevaniaBackground(key, width, height) {
+                    // Check if texture already exists
+                    if (this.textures.exists(key)) {
+                        console.log(`Texture ${key} already exists, skipping creation`);
+                        return;
+                    }
+                    
+                    try {
+                        const canvas = this.textures.createCanvas(key, width, height);
+                        if (!canvas) {
+                            console.error(`Failed to create canvas for texture ${key}`);
+                            return;
+                        }
+                        
+                        const context = canvas.getContext('2d');
+                        if (!context) {
+                            console.error(`Failed to get 2D context for texture ${key}`);
+                            return;
+                        }
+                        
+                        // Night sky background with dark blue to black gradient
+                        const gradient = context.createLinearGradient(0, 0, 0, height);
+                        gradient.addColorStop(0, '#000000');  // Black at top
+                        gradient.addColorStop(0.7, '#1a1a3a'); // Dark blue-purple for night sky
+                        gradient.addColorStop(1, '#3d0a1f');   // Dark reddish at horizon
+                        
+                        context.fillStyle = gradient;
+                        context.fillRect(0, 0, width, height);
+                        
+                        // Add stars
+                        context.fillStyle = '#FFFFFF';
+                        for (let i = 0; i < 100; i++) {
+                            const x = Math.random() * width;
+                            const y = Math.random() * height * 0.7; // Stars only in the top 70%
+                            const size = Math.random() < 0.1 ? 2 : 1; // Some stars are bigger
+                            context.fillRect(x, y, size, size);
+                        }
+                        
+                        // Draw a large moon
+                        context.fillStyle = '#FFFACD'; // Light yellow
+                        context.beginPath();
+                        context.arc(width * 0.8, height * 0.2, 40, 0, Math.PI * 2);
+                        context.fill();
+                        
+                        // Add a subtle glow to the moon
+                        const moonGlow = context.createRadialGradient(
+                            width * 0.8, height * 0.2, 40,
+                            width * 0.8, height * 0.2, 70
+                        );
+                        moonGlow.addColorStop(0, 'rgba(255, 250, 205, 0.3)');
+                        moonGlow.addColorStop(1, 'rgba(255, 250, 205, 0)');
+                        context.fillStyle = moonGlow;
+                        context.beginPath();
+                        context.arc(width * 0.8, height * 0.2, 70, 0, Math.PI * 2);
+                        context.fill();
+                        
+                        // Draw distant mountains/castle silhouettes
+                        context.fillStyle = '#000000'; // Black silhouettes
+                        
+                        // Castle towers
+                        for (let i = 0; i < 5; i++) {
+                            const towerX = width * (0.2 + i * 0.15);
+                            const towerHeight = 80 + Math.random() * 50;
+                            const towerWidth = 30 + Math.random() * 20;
+                            
+                            // Tower body
+                            context.fillRect(
+                                towerX - towerWidth/2, 
+                                height * 0.7 - towerHeight, 
+                                towerWidth, 
+                                towerHeight
+                            );
+                            
+                            // Tower top (crenellations)
+                            context.beginPath();
+                            context.moveTo(towerX - towerWidth/2, height * 0.7 - towerHeight);
+                            
+                            const numCrenels = Math.floor(towerWidth / 10);
+                            for (let j = 0; j < numCrenels; j++) {
+                                const crenel_x1 = towerX - towerWidth/2 + j * (towerWidth/numCrenels);
+                                const crenel_x2 = crenel_x1 + (towerWidth/numCrenels)/2;
+                                context.lineTo(crenel_x1, height * 0.7 - towerHeight);
+                                context.lineTo(crenel_x1, height * 0.7 - towerHeight - 10);
+                                context.lineTo(crenel_x2, height * 0.7 - towerHeight - 10);
+                                context.lineTo(crenel_x2, height * 0.7 - towerHeight);
+                            }
+                            
+                            context.lineTo(towerX + towerWidth/2, height * 0.7 - towerHeight);
+                            context.fill();
+                        }
+                        
+                        // Mountain silhouettes
+                        context.beginPath();
+                        context.moveTo(0, height * 0.7);
+                        
+                        for (let x = 0; x < width; x += width/10) {
+                            const y = height * 0.7 - (Math.random() * 50 + 20);
+                            context.lineTo(x, y);
+                        }
+                        
+                        context.lineTo(width, height * 0.7);
+                        context.fill();
+                        
+                        canvas.refresh();
+                    } catch (e) {
+                        console.error(`Error in createCastlevaniaBackground for ${key}:`, e);
+                    }
+                }
+                
+                createCastleShopBackground(key, width, height) {
+                    // Check if texture already exists
+                    if (this.textures.exists(key)) {
+                        console.log(`Texture ${key} already exists, skipping creation`);
+                        return;
+                    }
+                    
+                    try {
+                        const canvas = this.textures.createCanvas(key, width, height);
+                        if (!canvas) {
+                            console.error(`Failed to create canvas for texture ${key}`);
+                            return;
+                        }
+                        
+                        const context = canvas.getContext('2d');
+                        if (!context) {
+                            console.error(`Failed to get 2D context for texture ${key}`);
+                            return;
+                        }
+                        
+                        // Gothic interior background
+                        // Dark stone walls
+                        context.fillStyle = '#1a1a1a';
+                        context.fillRect(0, 0, width, height);
+                        
+                        // Floor
+                        context.fillStyle = '#2a2a2a';
+                        context.fillRect(0, height * 0.7, width, height * 0.3);
+                        
+                        canvas.refresh();
+                    } catch (e) {
+                        console.error(`Error in createCastleShopBackground for ${key}:`, e);
+                    }
+                }
+                
+                colorToHex(color) {
+                    if (typeof color === 'string') return color;
+                    return '#' + color.toString(16).padStart(6, '0');
+                }
+                
+                create() {
+                    console.log('MenuScene: create started');
+                    
+                    // Create dark gray background
+                    this.add.rectangle(400, 300, 800, 600, 0x111111, 1);
+                    
+                    // Add gothic architecture silhouette
+                    this.add.image(400, 300, 'castleBackground').setAlpha(0.3);
+                    
+                    // Create a red background with beveled effect like in Castlevania
+                    // Use a single container for all title elements to keep them properly aligned
+                    const titleContainer = this.add.container(400, 150);
+                    
+                    // Main red background with proper width
+                    const titleBgMain = this.add.rectangle(0, 0, 600, 80, 0x990000);
+                    titleContainer.add(titleBgMain);
+                    
+                    // Top edge highlight
+                    const titleBgTop = this.add.rectangle(0, -35, 600, 10, 0xcc0000);
+                    titleBgTop.setOrigin(0.5, 1);
+                    titleContainer.add(titleBgTop);
+                    
+                    // Bottom edge shadow
+                    const titleBgBottom = this.add.rectangle(0, 35, 600, 10, 0x660000);
+                    titleBgBottom.setOrigin(0.5, 0);
+                    titleContainer.add(titleBgBottom);
+                    
+                    // Add left filigree decoration
+                    const leftFiligree = this.add.graphics();
+                    leftFiligree.lineStyle(3, 0xcc0000, 0.9);
+                    leftFiligree.beginPath();
+                    leftFiligree.moveTo(-300, -30);
+                    leftFiligree.lineTo(-320, -10);
+                    leftFiligree.lineTo(-330, 0);
+                    leftFiligree.lineTo(-320, 10);
+                    leftFiligree.lineTo(-300, 30);
+                    leftFiligree.arc(-295, -30, 5, 0, Math.PI, false);
+                    leftFiligree.moveTo(-300, 30);
+                    leftFiligree.arc(-295, 30, 5, 0, Math.PI, true);
+                    leftFiligree.strokePath();
+                    titleContainer.add(leftFiligree);
+                    
+                    // Add right filigree decoration
+                    const rightFiligree = this.add.graphics();
+                    rightFiligree.lineStyle(3, 0xcc0000, 0.9);
+                    rightFiligree.beginPath();
+                    rightFiligree.moveTo(300, -30);
+                    rightFiligree.lineTo(320, -10);
+                    rightFiligree.lineTo(330, 0);
+                    rightFiligree.lineTo(320, 10);
+                    rightFiligree.lineTo(300, 30);
+                    rightFiligree.arc(295, -30, 5, 0, Math.PI, true);
+                    rightFiligree.moveTo(300, 30);
+                    rightFiligree.arc(295, 30, 5, 0, Math.PI, false);
+                    rightFiligree.strokePath();
+                    titleContainer.add(rightFiligree);
+                    
+                    // Add shine effect
+                    const shine = this.add.graphics();
+                    shine.fillStyle(0xffffff, 0.15);
+                    shine.fillRect(-200, -20, 400, 10);
+                    shine.rotation = Math.PI * 0.05;
+                    titleContainer.add(shine);
+                    
+                    // Create the full title as a single element
+                    const titleText = this.add.text(0, 0, 'VAMPIRE SMASH', { 
+                        fontFamily: 'Georgia, "Times New Roman", serif',
+                        fontSize: '68px', 
+                        fontWeight: 'bold',
+                        fill: '#663399',
+                        stroke: '#220033',
+                        strokeThickness: 5,
+                        shadow: { offsetX: 2, offsetY: 2, color: '#000', blur: 2, stroke: true, fill: true }
+                    }).setOrigin(0.5);
+                    titleContainer.add(titleText);
+                    
+                    // Add subtitle properly centered below the title
+                    const subtitle = this.add.text(0, 62, 'SYMPHONY OF DESTRUCTION', { 
+                        fontFamily: 'Georgia, "Times New Roman", serif',
+                        fontSize: '20px', 
+                        fill: '#e0e0e0',
+                        stroke: '#000',
+                        strokeThickness: 3
+                    }).setOrigin(0.5);
+                    titleContainer.add(subtitle);
+                    
+                    // Add copyright text at bottom
+                    this.add.text(400, 560, '© 2025 - 8 O\'CLOCK - ALL RIGHTS RESERVED', { 
+                        fontFamily: 'Arial',
+                        fontSize: '12px',
+                        fill: '#ffffaa'
+                    }).setOrigin(0.5);
+                    
+                    // Create start button in Castlevania style
+                    const startButton = this.add.text(400, 400, 'PRESS START BUTTON', { 
+                        fontFamily: 'Georgia, "Times New Roman", serif',
+                        fontSize: '24px', 
+                        fill: '#cc9900',
+                        stroke: '#442200',
+                        strokeThickness: 4
+                    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+                    
+                    // Make the start button pulse slowly
+                    this.tweens.add({
+                        targets: startButton,
+                        alpha: { from: 1, to: 0.5 },
+                        duration: 1500,
+                        yoyo: true,
+                        repeat: -1
+                    });
+                    
+                    // Start game on button click
+                    startButton.on('pointerdown', () => {
+                        console.log('Start button clicked - transitioning to GameScene');
+                        this.scene.start('GameScene');
+                    });
+                    
+                    // Create instructions button
+                    const instructionsButton = this.add.text(400, 460, 'INSTRUCTIONS', { 
+                        fontFamily: 'Georgia, "Times New Roman", serif',
+                        fontSize: '18px', 
+                        fill: '#dddddd',
+                        stroke: '#000000',
+                        strokeThickness: 3
+                    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+                    
+                    // Instructions button interaction
+                    instructionsButton.on('pointerover', () => {
+                        instructionsButton.setTint(0xffff00);
+                    });
+                    instructionsButton.on('pointerout', () => {
+                        instructionsButton.clearTint();
+                    });
+                    instructionsButton.on('pointerdown', () => {
+                        this.showInstructions();
+                    });
+                }
+                
+                // Draw decorative filigree for the sides of the title bar
+                drawFiligree(x, y, side) {
+                    const filigree = this.add.graphics();
+                    filigree.lineStyle(3, 0xcc0000, 0.9);
+                    
+                    // Determine direction based on side
+                    const dir = side === 'left' ? -1 : 1;
+                    
+                    // Starting point
+                    const startX = x;
+                    const startY = y;
+                    
+                    // Draw more pronounced filigree decoration
+                    filigree.beginPath();
+                    filigree.moveTo(startX, startY - 30);
+                    
+                    // Curved line with more exaggerated shape
+                    filigree.lineTo(startX + (dir * 20), startY - 20);
+                    filigree.lineTo(startX + (dir * 40), startY - 5);
+                    filigree.lineTo(startX + (dir * 40), startY + 5);
+                    filigree.lineTo(startX + (dir * 20), startY + 20);
+                    filigree.lineTo(startX, startY + 30);
+                    
+                    // Add curls at the ends
+                    filigree.arc(startX - (dir * 5), startY - 30, 7, 0, Math.PI * (dir < 0 ? 1 : 2), false);
+                    filigree.moveTo(startX, startY + 30);
+                    filigree.arc(startX - (dir * 5), startY + 30, 7, 0, Math.PI * (dir < 0 ? 1 : 2), true);
+                    
+                    // Add decoration details
+                    for (let i = -20; i <= 20; i += 10) {
+                        filigree.moveTo(startX + (dir * 20), startY + i);
+                        filigree.lineTo(startX + (dir * 30), startY + i);
+                    }
+                    
+                    filigree.strokePath();
+                }
+                
+                // Show game instructions modal
+                showInstructions() {
+                    // Create a semi-transparent background panel
+                    const panel = this.add.rectangle(400, 300, 600, 400, 0x000000, 0.9).setInteractive();
+                    
+                    // Add ornate border to the panel
+                    const border = this.add.graphics();
+                    border.lineStyle(3, 0xaa7700, 1);
+                    border.strokeRect(100, 100, 600, 400);
+                    
+                    // Add gothic ornaments at corners
+                    this.drawGothicOrnament(border, 100, 100, 20);
+                    this.drawGothicOrnament(border, 700, 100, 20);
+                    this.drawGothicOrnament(border, 100, 500, 20);
+                    this.drawGothicOrnament(border, 700, 500, 20);
+                    
+                    // Add title to instructions panel
+                    const instructionsTitle = this.add.text(400, 130, 'GAME INSTRUCTIONS', {
+                        fontFamily: 'Georgia, "Times New Roman", serif',
+                        fontSize: '28px',
+                        fill: '#ff0000',
+                        stroke: '#000000',
+                        strokeThickness: 4
+                    }).setOrigin(0.5);
+                    
+                    // Add instructions text
+                    const instructions = [
+                        "- Click and hold to aim your vampire",
+                        "- Release to launch your vampire into battle",
+                        "- Bounce off enemies to gain height and distance",
+                        "- Collect blood to upgrade your abilities",
+                        "- Defeat the night creatures and travel as far as possible"
+                    ];
+                    
+                    let y = 200;
+                    instructions.forEach(line => {
+                        this.add.text(400, y, line, {
+                            fontFamily: 'Georgia, "Times New Roman", serif',
+                            fontSize: '18px',
+                            fill: '#dddddd',
+                            align: 'center'
+                        }).setOrigin(0.5);
+                        y += 40;
+                    });
+                    
+                    // Add close button
+                    const closeButton = this.add.text(400, 440, 'RETURN', {
+                        fontFamily: 'Georgia, "Times New Roman", serif',
+                        fontSize: '22px',
+                        fill: '#dddddd',
+                        stroke: '#000000',
+                        strokeThickness: 3
+                    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+                    
+                    // Close button interaction
+                    closeButton.on('pointerover', () => {
+                        closeButton.setTint(0xffff00);
+                    });
+                    closeButton.on('pointerout', () => {
+                        closeButton.clearTint();
+                    });
+                    closeButton.on('pointerdown', () => {
+                        // Remove all elements of the instructions modal
+                        panel.destroy();
+                        border.destroy();
+                        instructionsTitle.destroy();
+                        closeButton.destroy();
+                        // Destroy all instruction text lines
+                        this.children.list
+                            .filter(child => child.type === 'Text' && instructions.includes(child.text))
+                            .forEach(text => text.destroy());
+                    });
+                }
+                
+                // Helper for drawing gothic ornaments
+                drawGothicOrnament(graphics, x, y, size) {
+                    graphics.lineStyle(2, 0xaa7700, 1);
+                    graphics.beginPath();
+                    graphics.moveTo(x - size, y);
+                    graphics.lineTo(x, y - size);
+                    graphics.lineTo(x + size, y);
+                    graphics.lineTo(x, y + size);
+                    graphics.closePath();
+                    graphics.strokePath();
+                }
+                
+                // Create flickering torch effect
+                createFlickeringTorch(x, y) {
+                    // Create a light sprite using the particle texture
+                    const light = this.add.image(x, y, 'particle').setScale(5).setTint(0xff7700);
+                    
+                    // Create flickering animation
+                    this.tweens.add({
+                        targets: light,
+                        alpha: { from: 0.7, to: 1 },
+                        scale: { from: 5, to: 5.5 },
+                        duration: 100 + Math.random() * 200,
+                        yoyo: true,
+                        repeat: -1
+                    });
+                }
+                
+                createGummyBearTexture(key, width, height, color) {
+                    // Check if texture already exists
+                    if (this.textures.exists(key)) {
+                        console.log(`Texture ${key} already exists, skipping creation`);
+                        return;
+                    }
+
+                    try {
+                        // Create a skeleton or goblin texture (replacing gummy bears)
+                        const canvas = this.textures.createCanvas(key, width, height);
+                        if (!canvas) {
+                            console.error(`Failed to create canvas for texture ${key}`);
+                            return;
+                        }
+                        
+                        const context = canvas.getContext('2d');
+                        if (!context) {
+                            console.error(`Failed to get 2D context for texture ${key}`);
+                            return;
+                        }
+                        
+                        // Determine if this will be a skeleton or goblin based on color
+                        // Even indices are skeletons, odd are goblins
+                        const isGoblin = key.endsWith('1') || key.endsWith('3');
+                        
+                        if (isGoblin) {
+                            // Create a goblin
+                            this.drawGoblin(context, width, height, color);
+                        } else {
+                            // Create a skeleton
+                            this.drawSkeleton(context, width, height);
+                        }
+                        
+                        canvas.refresh();
+                    } catch (e) {
+                        console.error(`Error in createGummyBearTexture for ${key}:`, e);
+                    }
+                }
+                
+                drawGoblin(context, width, height, color) {
+                    // Goblin body color (green tones)
+                    const goblinColor = color || 0x2ecc71;
+                    context.fillStyle = this.colorToHex(goblinColor);
+                    
+                    // Head (wider oval)
+                    context.beginPath();
+                    context.ellipse(width*0.5, height*0.3, width*0.25, height*0.2, 0, 0, Math.PI * 2);
+                    context.fill();
+                    
+                    // Body (slightly hunched)
+                    context.beginPath();
+                    context.ellipse(width*0.5, height*0.55, width*0.2, height*0.25, 0, 0, Math.PI * 2);
+                    context.fill();
+                    
+                    // Arms
+                    context.beginPath();
+                    context.ellipse(width*0.35, height*0.55, width*0.08, height*0.2, Math.PI/6, 0, Math.PI * 2);
+                    context.fill();
+                    
+                    context.beginPath();
+                    context.ellipse(width*0.65, height*0.55, width*0.08, height*0.2, -Math.PI/6, 0, Math.PI * 2);
+                    context.fill();
+                    
+                    // Pointed ears
+                    context.beginPath();
+                    context.moveTo(width*0.3, height*0.23);
+                    context.lineTo(width*0.2, height*0.15);
+                    context.lineTo(width*0.35, height*0.18);
+                    context.fill();
+                    
+                    context.beginPath();
+                    context.moveTo(width*0.7, height*0.23);
+                    context.lineTo(width*0.8, height*0.15);
+                    context.lineTo(width*0.65, height*0.18);
+                    context.fill();
+                    
+                    // Eyes (angry)
+                    context.fillStyle = '#FF0000';
+                    context.beginPath();
+                    context.arc(width*0.4, height*0.27, width*0.05, 0, Math.PI * 2);
+                    context.fill();
+                    
+                    context.beginPath();
+                    context.arc(width*0.6, height*0.27, width*0.05, 0, Math.PI * 2);
+                    context.fill();
+                    
+                    // Angry eyebrows
+                    context.strokeStyle = '#000000';
+                    context.lineWidth = 2;
+                    context.beginPath();
+                    context.moveTo(width*0.35, height*0.2);
+                    context.lineTo(width*0.45, height*0.22);
+                    context.stroke();
+                    
+                    context.beginPath();
+                    context.moveTo(width*0.65, height*0.2);
+                    context.lineTo(width*0.55, height*0.22);
+                    context.stroke();
+                    
+                    // Mouth with fangs
+                    context.beginPath();
+                    context.moveTo(width*0.4, height*0.37);
+                    context.lineTo(width*0.45, height*0.4);
+                    context.lineTo(width*0.5, height*0.37);
+                    context.lineTo(width*0.55, height*0.4);
+                    context.lineTo(width*0.6, height*0.37);
+                    context.stroke();
+                    
+                    // Legs
+                    context.fillStyle = this.colorToHex(goblinColor);
+                    context.beginPath();
+                    context.roundRect(width*0.4, height*0.75, width*0.08, height*0.2, width*0.03);
+                    context.fill();
+                    
+                    context.beginPath();
+                    context.roundRect(width*0.52, height*0.75, width*0.08, height*0.2, width*0.03);
+                    context.fill();
+                }
+                
+                drawSkeleton(context, width, height) {
+                    // Bone white color
+                    context.fillStyle = '#EEEEEE';
+                    
+                    // Skull
+                    context.beginPath();
+                    context.arc(width*0.5, height*0.25, width*0.15, 0, Math.PI * 2);
+                    context.fill();
+                    
+                    // Jaw
+                    context.beginPath();
+                    context.ellipse(width*0.5, height*0.33, width*0.12, height*0.06, 0, 0, Math.PI * 2);
+                    context.fill();
+                    
+                    // Ribcage
+                    context.beginPath();
+                    context.ellipse(width*0.5, height*0.5, width*0.15, height*0.15, 0, 0, Math.PI * 2);
+                    context.stroke();
+                    
+                    // Ribs
+                    for (let i = 0; i < 4; i++) {
+                        context.beginPath();
+                        context.moveTo(width*0.35, height*(0.42 + i*0.04));
+                        context.lineTo(width*0.65, height*(0.42 + i*0.04));
+                        context.stroke();
+                    }
+                    
+                    // Spine
+                    context.lineWidth = 3;
+                    context.beginPath();
+                    context.moveTo(width*0.5, height*0.35);
+                    context.lineTo(width*0.5, height*0.7);
+                    context.stroke();
+                    context.lineWidth = 1;
+                    
+                    // Pelvis
+                    context.beginPath();
+                    context.moveTo(width*0.35, height*0.7);
+                    context.lineTo(width*0.65, height*0.7);
+                    context.lineTo(width*0.55, height*0.75);
+                    context.lineTo(width*0.45, height*0.75);
+                    context.closePath();
+                    context.stroke();
+                    
+                    // Arms
+                    context.beginPath();
+                    context.moveTo(width*0.35, height*0.42);
+                    context.lineTo(width*0.25, height*0.6);
+                    context.stroke();
+                    
+                    context.beginPath();
+                    context.moveTo(width*0.65, height*0.42);
+                    context.lineTo(width*0.75, height*0.6);
+                    context.stroke();
+                    
+                    // Legs
+                    context.beginPath();
+                    context.moveTo(width*0.45, height*0.75);
+                    context.lineTo(width*0.4, height*0.9);
+                    context.stroke();
+                    
+                    context.beginPath();
+                    context.moveTo(width*0.55, height*0.75);
+                    context.lineTo(width*0.6, height*0.9);
+                    context.stroke();
+                    
+                    // Eyes
+                    context.fillStyle = '#000000';
+                    context.beginPath();
+                    context.arc(width*0.43, height*0.22, width*0.04, 0, Math.PI * 2);
+                    context.fill();
+                    
+                    context.beginPath();
+                    context.arc(width*0.57, height*0.22, width*0.04, 0, Math.PI * 2);
+                    context.fill();
+                    
+                    // Nose
+                    context.beginPath();
+                    context.moveTo(width*0.5, height*0.25);
+                    context.lineTo(width*0.5, height*0.28);
+                    context.stroke();
+                    
+                    // Mouth
+                    context.beginPath();
+                    context.arc(width*0.5, height*0.33, width*0.07, 0, Math.PI);
+                    context.stroke();
+                }
+                
+                createMultiColorGummies() {
+                    console.log('Creating multi-color gummy bear textures');
+                    
+                    // Create multiple gummy bear textures with different colors
+                    const gummyColors = [
+                        0xf1c40f, // Yellow
+                        0xe74c3c, // Red
+                        0x2ecc71, // Green
+                        0x3498db, // Blue
+                        0x9b59b6  // Purple
+                    ];
+                    
+                    // Create a texture for each color
+                    gummyColors.forEach((color, index) => {
+                        const key = `gummy${index}`;
+                        // Skip if texture already exists
+                        if (!this.textures.exists(key)) {
+                            try {
+                                this.createGummyBearTexture(key, 40, 40, color);
+                                console.log(`Created gummy texture: ${key}`);
+                            } catch (e) {
+                                console.error(`Error creating gummy texture ${key}:`, e);
+                            }
+                        } else {
+                            console.log(`Texture ${key} already exists, skipping creation`);
+                        }
+                    });
+                    
+                    // Don't create the fallback gummy texture since it's already created in createPlaceholderTextures
+                    console.log('Multi-color gummy bear textures created successfully!');
+                }
+                
+                createBelmonTexture() {
+                    // Create a Belmont character texture (Castlevania-inspired)
+                    const key = 'player';
+                    const width = 70;
+                    const height = 70;
+                    
+                    // Check if texture already exists
+                    if (this.textures.exists(key)) {
+                        console.log(`Texture ${key} already exists, skipping creation`);
+                        return;
+                    }
+                    
+                    try {
+                        const canvas = this.textures.createCanvas(key, width, height);
+                        if (!canvas) {
+                            console.error(`Failed to create canvas for texture ${key}`);
+                            return;
+                        }
+                        
+                        const context = canvas.getContext('2d');
+                        if (!context) {
+                            console.error(`Failed to get 2D context for texture ${key}`);
+                            return;
+                        }
+                        
+                        // Character colors
+                        const bodyColor = '#3c2a51'; // Dark purple for coat
+                        const skinColor = '#f8d8c0';
+                        const hairColor = '#8b4513'; // Brown
+                        const whipColor = '#b58c50'; // Leather brown
+                        
+                        // Draw body (coat)
+                        context.fillStyle = bodyColor;
+                        context.fillRect(width * 0.25, height * 0.3, width * 0.5, height * 0.5);
+                        
+                        // Draw legs
+                        context.fillStyle = '#000000'; // Black pants
+                        context.fillRect(width * 0.3, height * 0.8, width * 0.15, height * 0.2);
+                        context.fillRect(width * 0.55, height * 0.8, width * 0.15, height * 0.2);
+                        
+                        // Draw head
+                        context.fillStyle = skinColor;
+                        context.beginPath();
+                        context.arc(width * 0.5, height * 0.2, width * 0.18, 0, Math.PI * 2);
+                        context.fill();
+                        
+                        // Draw hair
+                        context.fillStyle = hairColor;
+                        context.beginPath();
+                        context.ellipse(width * 0.5, height * 0.15, width * 0.18, height * 0.13, 0, 0, Math.PI);
+                        context.fill();
+                        
+                        // Draw arms
+                        context.fillStyle = bodyColor;
+                        context.fillRect(width * 0.1, height * 0.35, width * 0.15, height * 0.3);
+                        context.fillRect(width * 0.75, height * 0.35, width * 0.15, height * 0.3);
+                        
+                        // Draw hands
+                        context.fillStyle = skinColor;
+                        context.beginPath();
+                        context.arc(width * 0.1, height * 0.65, width * 0.08, 0, Math.PI * 2);
+                        context.fill();
+                        
+                        context.beginPath();
+                        context.arc(width * 0.9, height * 0.65, width * 0.08, 0, Math.PI * 2);
+                        context.fill();
+                        
+                        // Draw whip
+                        context.strokeStyle = whipColor;
+                        context.lineWidth = 3;
+                        context.beginPath();
+                        context.moveTo(width * 0.1, height * 0.65);
+                        context.lineTo(width * 0.05, height * 0.7);
+                        context.lineTo(width * 0.0, height * 0.85);
+                        context.stroke();
+                        
+                        // Draw face
+                        context.fillStyle = '#000000';
+                        context.beginPath();
+                        context.arc(width * 0.45, height * 0.18, width * 0.03, 0, Math.PI * 2); // Left eye
+                        context.fill();
+                        
+                        context.beginPath();
+                        context.arc(width * 0.55, height * 0.18, width * 0.03, 0, Math.PI * 2); // Right eye
+                        context.fill();
+                        
+                        context.beginPath();
+                        context.moveTo(width * 0.45, height * 0.25);
+                        context.lineTo(width * 0.55, height * 0.25);
+                        context.stroke(); // Mouth
+                        
+                        canvas.refresh();
+                    } catch (e) {
+                        console.error(`Error creating Belmont texture:`, e);
+                    }
+                }
+            }
+            
+            // Simple Game Scene - Basic gameplay
+            /*
+             * GameScene: Core gameplay with optimized physics system
+             * Features:
+             * - Launcher mechanics with angle and power adjustment
+             * - Guaranteed minimum bounce height of 200px using physics formula v = sqrt(2*g*h)
+             * - Maximum speed limit (1000 units) with percentage-based display
+             * - Forward-only momentum for true launcher game mechanics
+             * - Consistent bounce height tracking and display
+             * - Enemy collision physics with minimum bounce guarantee
+             * - Progressive slowdown until speed threshold of 50 units
+             */
+            class GameScene extends Phaser.Scene {
+                constructor() {
+                    super('GameScene');
+                    this.isAiming = false;
+                    this.isLaunched = false;
+                    this.canLaunch = true;
+                    this.currentDistance = 0;
+                    this.worldWidth = 50000; // Much larger world for long-distance travel
+                    this.isStomping = false; // Add tracking for stomp state
+                    this.gameOver = false;
+                    this.gummiesCollected = 0; // Track enemies defeated
+                }
+                
+                create() {
+                    console.log('GameScene: create started');
+                    
+                    // Set world bounds with proper height to ensure player can't fall below screen
+                    this.physics.world.setBounds(0, 0, this.worldWidth, 550);
+                    
+                    // Lower gravity initially for better setup
+                    this.physics.world.gravity.y = 300;
+                    
+                    // Reset launch flags to ensure player can launch
+                    this.isLaunched = false;
+                    this.canLaunch = true;
+                    this.isStomping = false; // Add tracking for stomp state
+                    
+                    // Ensure particle texture exists
+                    this.createParticleTexture();
+                    
+                    // Proper layering - create everything in depth order
+                    this.createBackgrounds();
+                    this.createFloor();
+                    this.createPhysicsGroups();
+                    this.createPlayer();
+                    this.setupObstaclesAndCollectibles();
+                    this.setupCollisions();
+                    this.setupCamera();
+                    this.setupUI();
+                    this.setupInputHandlers();
+                    
+                    // Add debug info about player position
+                    console.log(`Player position check: player.y=${this.player.y}, floor top at y=500`);
+                    
+                    // Add speedometer display - text only, no gauge
+                    this.speedometerText = this.add.text(400, 80, 'Speed: 0', {
+                        fontSize: '16px',
+                        fill: '#ffffff',
+                        stroke: '#000',
+                        strokeThickness: 1
+                    }).setOrigin(0.5).setScrollFactor(0).setDepth(101);
+                    
+                    // Add bounce height display - only most recent bounce
+                    this.bounceHeightText = this.add.text(400, 110, 'Bounce Height: 0px', {
+                        fontSize: '16px',
+                        fill: '#ffffff',
+                        stroke: '#000',
+                        strokeThickness: 1
+                    }).setOrigin(0.5).setScrollFactor(0).setDepth(101);
+                    
+                    // Remove the max bounce height display
+                    
+                    // Initialize game variables
+                    this.initialY = 0;
+                    this.lowestY = 0;
+                    this.currentBounceHeight = 0;
+                    this.minBounceHeight = 200; // Set minimum bounce height
+                    this.trackingBounce = false;
+                    this.lastBounceHeight = 0; // Store the last valid bounce height
+                    
+                    // Set maximum speed limit
+                    this.maxSpeed = 1000;
+                    
+                    console.log('GameScene: create completed successfully');
+                }
+                
+                createBackgrounds() {
+                    // Background layers (depth 0-1)
+                    this.bg = this.add.tileSprite(400, 300, 800, 600, 'background').setDepth(0);
+                    this.bg.setScrollFactor(0); // Fix to camera
+                    
+                    // Add a castle background that moves slower than the main camera
+                    this.castleBg = this.add.tileSprite(400, 300, 800, 600, 'castleBackground').setDepth(1);
+                    this.castleBg.setScrollFactor(0); // Fix to camera
+                    
+                    // Add moon light effect (subtle overlay)
+                    const moonlight = this.add.graphics().setDepth(1.5);
+                    moonlight.fillStyle(0x8844aa, 0.1);
+                    moonlight.fillRect(0, 0, this.worldWidth, 600);
+                    moonlight.setScrollFactor(0.2, 0); // Parallax effect
+                }
+                
+                createFloor() {
+                    // Create a visible extended floor (depth 2)
+                    this.floor = this.add.graphics().setDepth(2);
+                    
+                    // Stone floor with Castlevania theme (dark gray)
+                    this.floor.fillStyle(0x292929, 1);
+                    
+                    // Place ground at y=500 but extend it all the way to bottom of screen (y=600)
+                    const floorTopY = 500;
+                    const floorHeight = 100; // Extend all the way to bottom (600-500=100)
+                    this.floor.fillRect(0, floorTopY, this.worldWidth, floorHeight);
+                    
+                    // Add stone texture pattern to the floor
+                    this.drawStonePattern(floorTopY);
+                    
+                    // Distance markers on ground
+                    for (let x = 500; x < this.worldWidth; x += 500) {
+                        const marker = this.add.text(x, floorTopY - 20, `${x}m`, { 
+                            fontSize: '18px', 
+                            fill: '#dd9',
+                            stroke: '#000',
+                            strokeThickness: 3
+                        }).setOrigin(0.5).setDepth(3);
+                    }
+                }
+                
+                drawStonePattern(floorTopY) {
+                    // Create stone brick pattern
+                    const stoneGraphics = this.add.graphics().setDepth(2.5);
+                    stoneGraphics.lineStyle(1, 0x111111, 0.8);
+                    
+                    // Horizontal lines
+                    for (let y = floorTopY; y < 600; y += 25) {
+                        stoneGraphics.beginPath();
+                        stoneGraphics.moveTo(0, y);
+                        stoneGraphics.lineTo(this.worldWidth, y);
+                        stoneGraphics.stroke();
+                    }
+                    
+                    // Vertical lines (staggered for brick pattern)
+                    let offset = 0;
+                    for (let y = floorTopY; y < 600; y += 25) {
+                        offset = (offset === 0) ? 50 : 0;
+                        
+                        for (let x = offset; x < this.worldWidth; x += 100) {
+                            stoneGraphics.beginPath();
+                            stoneGraphics.moveTo(x, y);
+                            stoneGraphics.lineTo(x, y + 25);
+                            stoneGraphics.stroke();
+                        }
+                    }
+                    
+                    // Add some brick highlights for texture
+                    const highlights = this.add.graphics().setDepth(2.6);
+                    highlights.fillStyle(0x444444, 0.3);
+                    
+                    for (let x = 0; x < this.worldWidth; x += 100) {
+                        for (let y = floorTopY; y < 600; y += 25) {
+                            if (Math.random() > 0.7) {
+                                const offsetX = (y % 50 === 0) ? 0 : 50;
+                                highlights.fillRect(x + offsetX, y, 100, 25);
+                            }
+                        }
+                    }
+                }
+                
+                createPhysicsGroups() {
+                    console.log('Creating physics groups');
+                    
+                    // Create ground physics body
+                    this.ground = this.physics.add.staticGroup();
+                    
+                    // The visible ground top is at y=500, but we'll make the physics body start there
+                    // and extend well below for proper collision
+                    const groundTopY = 500;
+                    
+                    // Create ground segments covering the world
+                    for (let x = 0; x < this.worldWidth; x += 800) {
+                        // Create a ground segment at each position
+                        const groundSegment = this.ground.create(
+                            x + 400, // Center x position of segment
+                            groundTopY + 50, // Position below the visible top edge
+                            'ground'
+                        );
+                        
+                        // Make it 800x100 to cover the whole visible ground area
+                        groundSegment.displayWidth = 800;
+                        groundSegment.displayHeight = 100;
+                        groundSegment.refreshBody();
+                        groundSegment.setVisible(false); // Hide the physics body
+                        
+                        console.log(`Ground segment created at x=${x+400}, y=${groundTopY+50}, width=800, height=100`);
+                    }
+                    
+                    // Create gummies group (removed the obstacles group)
+                    this.gummies = this.physics.add.group();
+                }
+                
+                createPlayer() {
+                    // Position player to sit on the ground at y=500
+                    const groundTopY = 500;  // The y position of the top of the ground
+                    const playerHeight = 70;
+                    
+                    // Place player so its bottom edge touches the ground top
+                    const playerY = groundTopY - (playerHeight / 2);
+                    
+                    console.log(`Creating player at y=${playerY} (groundTopY=${groundTopY}, playerHeight=${playerHeight})`);
+                    
+                    this.player = this.physics.add.sprite(150, playerY, 'player');
+                    this.player.setBounce(0.7);
+                    this.player.setCollideWorldBounds(true);
+                    this.player.setDepth(10);
+                    
+                    // Make sure the physics body matches the visual size
+                    this.player.body.setSize(70, 70, true);
+                    
+                    console.log(`Player created with physics body at y=${this.player.y}`);
+                }
+                
+                setupCamera() {
+                    // Set up camera to follow player
+                    this.cameras.main.setBounds(0, 0, this.worldWidth, 600);
+                    this.cameras.main.startFollow(this.player, true, 0.05, 0.05);
+                    this.cameras.main.setDeadzone(100, 200);
+                }
+                
+                createParticleTexture() {
+                    // Check if texture already exists
+                    if (this.textures.exists('particle')) {
+                        console.log('Using existing particle texture');
+                        return;
+                    }
+                    
+                    try {
+                        console.log('Creating particle texture in GameScene');
+                        
+                        // Create a small white circle for particles
+                        const graphics = this.make.graphics({x: 0, y: 0, add: false});
+                        if (!graphics) {
+                            console.error('Failed to create graphics object for particle texture');
+                            return;
+                        }
+                        
+                        graphics.fillStyle(0xffffff, 1);
+                        graphics.fillCircle(8, 8, 8);
+                        
+                        try {
+                            graphics.generateTexture('particle', 16, 16);
+                            console.log('Particle texture created successfully');
+                        } catch (e) {
+                            console.error('Error generating particle texture:', e);
+                        }
+                    } catch (e) {
+                        console.error('Error in createParticleTexture:', e);
+                    }
+                }
+                
+                setupObstaclesAndCollectibles() {
+                    // Add gummies in clusters covering about 2/3 of the ground
+                    // We'll create clusters of 3-7 gummies, with gaps between clusters
+                    let x = 600;
+                    while (x < this.worldWidth - 500) {
+                        // Determine if this section will have gummies (2/3 chance)
+                        const hasGummies = Phaser.Math.Between(1, 3) <= 2;
+                        
+                        if (hasGummies) {
+                            // Create a cluster of gummies
+                            const clusterWidth = Phaser.Math.Between(150, 300);
+                            const gummyCount = Phaser.Math.Between(3, 7);
+                            
+                            for (let i = 0; i < gummyCount; i++) {
+                                // Position within the cluster
+                                const gummyX = x + (i * (clusterWidth / gummyCount)) + Phaser.Math.Between(-10, 10);
+                                const y = Phaser.Math.Between(480, 490);
+                                
+                                // Randomly choose a gummy color (0-4)
+                                const gummyType = `gummy${Phaser.Math.Between(0, 4)}`;
+                                
+                                const gummy = this.gummies.create(gummyX, y, gummyType);
+                                gummy.setDepth(8); // Above obstacles but below player
+                                gummy.setBounce(0); // No bounce
+                                gummy.setImmovable(true); // Make them immovable
+                                gummy.body.allowGravity = false; // Disable gravity
+                                
+                                // Occasionally add a gummy above for variety (about 1/3 of the time)
+                                if (Phaser.Math.Between(1, 3) === 1) {
+                                    const y2 = Phaser.Math.Between(440, 470);
+                                    const gummyType2 = `gummy${Phaser.Math.Between(0, 4)}`;
+                                    const gummy2 = this.gummies.create(gummyX, y2, gummyType2);
+                                    gummy2.setDepth(8);
+                                    gummy2.setBounce(0); // No bounce
+                                    gummy2.setImmovable(true); // Make them immovable
+                                    gummy2.body.allowGravity = false; // Disable gravity
+                                }
+                            }
+                        }
+                        
+                        // Move to next section, with or without a gap
+                        const gapSize = Phaser.Math.Between(100, 200);
+                        x += gapSize + (hasGummies ? 300 : 0);
+                    }
+                }
+                
+                setupCollisions() {
+                    console.log('Setting up collisions');
+                    
+                    // Set up collisions with ground bounce effects
+                    this.physics.add.collider(
+                        this.player, 
+                        this.ground, 
+                        this.groundBounce, 
+                        null, 
+                        this
+                    );
+                    console.log('Player-ground collision set up');
+                    
+                    // Remove obstacles collision since we removed obstacles
+                    
+                    // Add collider between gummies and ground to prevent them from falling through
+                    this.physics.add.collider(this.gummies, this.ground);
+                    console.log('Gummies-ground collision set up');
+                    
+                    // Collect gummies
+                    this.physics.add.overlap(
+                        this.player, 
+                        this.gummies, 
+                        this.collectGummy, 
+                        null, 
+                        this
+                    );
+                    console.log('Gummy collection overlap set up');
+                }
+                
+                setupUI() {
+                    // Add UI panel at the top (depth 100)
+                    this.uiPanel = this.add.graphics().setDepth(100);
+                    this.uiPanel.fillStyle(0x000000, 0.7);
+                    this.uiPanel.fillRect(0, 0, 800, 60);
+                    this.uiPanel.setScrollFactor(0);
+                    
+                    // Distance and gummy indicators (depth 101)
+                    this.distanceText = this.add.text(20, 15, 'Distance: 0m', { 
+                        fontSize: '24px', 
+                        fill: '#ffffff',
+                        fontStyle: 'bold'
+                    }).setScrollFactor(0).setDepth(101);
+                    
+                    // Add currency indicator with gummy icon
+                    const gummyIcon = this.add.image(650, 30, 'gummyBear0')
+                        .setScrollFactor(0)
+                        .setScale(1.5)
+                        .setDepth(101);
+                        
+                    this.currencyText = this.add.text(680, 15, `${gameData.currency} BONES`, {
+                        fontSize: '24px',
+                        fill: '#ffff00',
+                        fontStyle: 'bold'
+                    }).setScrollFactor(0).setDepth(101);
+                    
+                    // Add enemies defeated counter
+                    this.gummyCounterText = this.add.text(400, 15, `Enemies Defeated: ${this.gummiesCollected}`, {
+                        fontSize: '24px',
+                        fill: '#ffffff',
+                        fontStyle: 'bold'
+                    }).setScrollFactor(0).setDepth(101).setOrigin(0.5, 0);
+                    
+                    // Update the HUD
+                    this.updateHUD();
+                    
+                    // Add reset button (fixed to camera)
+                    const resetButton = this.add.text(750, 20, 'RESET', { 
+                        fontSize: '24px', 
+                        fill: '#ffffff',
+                        backgroundColor: '#e74c3c',
+                        padding: { x: 10, y: 5 }
+                    }).setScrollFactor(0).setOrigin(1, 0).setDepth(101);
+                    
+                    resetButton.setInteractive({ useHandCursor: true });
+                    
+                    resetButton.on('pointerover', () => {
+                        resetButton.setScale(1.1);
+                    });
+                    
+                    resetButton.on('pointerout', () => {
+                        resetButton.setScale(1);
+                    });
+                    
+                    resetButton.on('pointerdown', () => {
+                        this.scene.restart();
+                    });
+                    
+                    // Add a back to menu button
+                    const menuButton = this.add.text(750, 60, 'MENU', { 
+                        fontSize: '24px', 
+                        fill: '#ffffff',
+                        backgroundColor: '#3498db',
+                        padding: { x: 10, y: 5 }
+                    }).setScrollFactor(0).setOrigin(1, 0).setDepth(101);
+                    
+                    menuButton.setInteractive({ useHandCursor: true });
+                    
+                    menuButton.on('pointerdown', () => {
+                        this.scene.start('MenuScene');
+                    });
+                    
+                    // Add debug toggle button (off by default)
+                    const debugButton = this.add.text(20, 60, 'DEBUG: OFF', { 
+                        fontSize: '16px', 
+                        fill: '#ffffff',
+                        backgroundColor: '#444444',
+                        padding: { x: 5, y: 2 }
+                    }).setScrollFactor(0).setDepth(101);
+                    
+                    debugButton.setInteractive({ useHandCursor: true });
+                    
+                    debugButton.on('pointerdown', () => {
+                        this.toggleDebug(debugButton);
+                    });
+                }
+                
+                toggleDebug(debugButton) {
+                    // Toggle the physics debug mode
+                    const debugging = !this.physics.world.drawDebug;
+                    
+                    if (debugging) {
+                        // Turn on debug
+                        this.physics.world.createDebugGraphic();
+                        this.physics.world.drawDebug = true;
+                        debugButton.setText('DEBUG: ON');
+                        debugButton.setBackgroundColor('#2ecc71');
+                        
+                        // Make ground segments visible for debugging
+                        this.ground.getChildren().forEach(segment => {
+                            segment.setAlpha(0.5);
+                            segment.setVisible(true);
+                        });
+                        
+                        console.log('Debug mode enabled');
+                    } else {
+                        // Turn off debug
+                        this.physics.world.debugGraphic.destroy();
+                        this.physics.world.drawDebug = false;
+                        debugButton.setText('DEBUG: OFF');
+                        debugButton.setBackgroundColor('#444444');
+                        
+                        // Hide ground segments again
+                        this.ground.getChildren().forEach(segment => {
+                            segment.setVisible(false);
+                        });
+                        
+                        console.log('Debug mode disabled');
+                    }
+                }
+                
+                setupInputHandlers() {
+                    // Input for aiming
+                    this.input.on('pointerdown', (pointer) => {
+                        if (this.canLaunch && !this.isLaunched) {
+                            const dx = Math.abs(pointer.x - this.player.x);
+                            const dy = Math.abs(pointer.y - this.player.y);
+                            if (dx < 100 && dy < 100) {
+                                this.isAiming = true;
+                                this.aimLine = this.add.graphics().setDepth(50); // Above most elements
+                            }
+                        }
+                    });
+                    
+                    this.input.on('pointermove', (pointer) => {
+                        if (this.isAiming) {
+                            this.updateAimLine(pointer);
+                        }
+                    });
+                    
+                    this.input.on('pointerup', (pointer) => {
+                        if (this.isAiming) {
+                            this.isAiming = false;
+                            this.launchPlayer(pointer);
+                            if (this.aimLine) this.aimLine.clear();
+                        }
+                    });
+                }
+                
+                launchPlayer(pointer) {
+                    if (!this.canLaunch) return;
+                    
+                    // Calculate angle and force based on pointer position
+                    const angle = Phaser.Math.Angle.Between(pointer.x, pointer.y, this.player.x, this.player.y);
+                    const distance = Phaser.Math.Distance.Between(pointer.x, pointer.y, this.player.x, this.player.y);
+                    
+                    // More powerful launch for long-distance travel
+                    const power = Math.min(distance * 8, 4000);
+                    
+                    // Calculate velocities
+                    let velocityX = Math.cos(angle) * power;
+                    let velocityY = Math.sin(angle) * power;
+                    
+                    // Enforce minimum horizontal velocity
+                    if (velocityX < 500) {
+                        velocityX = Math.max(velocityX, 500);
+                    }
+                    
+                    // Apply velocity
+                    this.player.setVelocityX(velocityX);
+                    this.player.setVelocityY(velocityY);
+                    
+                    // Set physics properties for good bouncing
+                    this.physics.world.gravity.y = 900; // Higher gravity for realistic bouncing
+                    this.player.setBounce(0.7);
+                    
+                    // Add a slight spin
+                    this.player.setAngularVelocity(Phaser.Math.Between(-100, 100));
+                    
+                    // Reduce air drag for longer travel
+                    this.player.setDrag(0, 0);
+                    
+                    // Add launch effect
+                    this.addLaunchEffect();
+                    
+                    // Prevent multiple launches
+                    this.isLaunched = true;
+                    this.canLaunch = false;
+                    
+                    // Clear aim event listeners
+                    this.input.off('pointermove');
+                    
+                    // Add stomp ability
+                    this.setupStompAbility();
+                    
+                    console.log(`Player launched with power: ${power}, velocityX: ${velocityX}, velocityY: ${velocityY}, from y=${this.player.y}`);
+                }
+                
+                addLaunchEffect() {
+                    try {
+                        // Create a one-time particle effect at launch point
+                        const particles = this.add.particles('particle');
+                        if (particles) {
+                            const emitter = particles.createEmitter({
+                                speed: 100,
+                                scale: { start: 1, end: 0 },
+                                blendMode: 'ADD',
+                                lifespan: 500
+                            });
+                            
+                            emitter.explode(30, this.player.x, this.player.y);
+                            
+                            // Clean up the emitter
+                            this.time.delayedCall(500, () => {
+                                emitter.stop();
+                                particles.destroy();
+                            });
+                        }
+                        
+                        // Add a "LAUNCH!" text that fades out
+                        const launchText = this.add.text(this.player.x, this.player.y - 50, 'LAUNCH!', {
+                            fontSize: '32px',
+                            fill: '#ffff00',
+                            stroke: '#000000',
+                            strokeThickness: 4
+                        }).setOrigin(0.5).setDepth(50);
+                        
+                        this.tweens.add({
+                            targets: launchText,
+                            y: launchText.y - 100,
+                            alpha: 0,
+                            duration: 1000,
+                            ease: 'Power2',
+                            onComplete: function() { launchText.destroy(); }
+                        });
+                    } catch (e) {
+                        console.error("Error in addLaunchEffect:", e);
+                    }
+                }
+                
+                setupStompAbility() {
+                    // Remove any existing listeners to ensure clean state
+                    this.input.off('pointerdown');
+                    
+                    // Enable ONLY stomping when player clicks during flight
+                    this.input.on('pointerdown', this.activateStomp, this);
+                    
+                    // Initialize stomp properties
+                    this.canStomp = true;
+                    this.stompCooldown = 1000; // 1 second cooldown
+                }
+                
+                activateStomp() {
+                    // Only allow stomping if launched and not in cooldown
+                    if (!this.isLaunched || !this.canStomp) return;
+                    
+                    console.log('Stomp activated!');
+                    
+                    // Set a flag to indicate we're in stomp mode
+                    this.isStomping = true;
+                    
+                    // Apply a downward force
+                    this.player.setVelocityY(1000);
+                    
+                    // Visual effect
+                    this.player.setTint(0xff0000);
+                    
+                    try {
+                        // Create a stomp effect
+                        const particles = this.add.particles('particle');
+                        let emitter = null;
+                        
+                        if (particles) {
+                            emitter = particles.createEmitter({
+                                speed: 100,
+                                scale: { start: 1, end: 0 },
+                                blendMode: 'ADD',
+                                lifespan: 300
+                            });
+                            
+                            emitter.startFollow(this.player);
+                        }
+                        
+                        // Set cooldown
+                        this.canStomp = false;
+                        
+                        // Reset after cooldown
+                        this.time.delayedCall(this.stompCooldown, () => {
+                            this.canStomp = true;
+                            this.player.clearTint();
+                            if (emitter) {
+                                emitter.stop();
+                                particles.destroy();
+                            }
+                        });
+                    } catch (e) {
+                        console.error("Error in activateStomp:", e);
+                        // Basic fallback if particles fail
+                        this.canStomp = false;
+                        this.time.delayedCall(this.stompCooldown, () => {
+                            this.canStomp = true;
+                            this.player.clearTint();
+                        });
+                    }
+                }
+                
+                groundBounce(player, ground) {
+                    // Only show bounce effects if the player has been launched
+                    if (!this.isLaunched) return;
+                    
+                    // Calculate impact velocity
+                    const impactVelocity = Math.abs(player.body.velocity.y);
+                    
+                    // If we had a valid bounce before, store it as last bounce height
+                    if (this.currentBounceHeight > 0) {
+                        this.lastBounceHeight = this.currentBounceHeight;
+                    }
+                    
+                    // Reset bounce height tracking for next bounce
+                    this.initialY = player.y;
+                    this.lowestY = player.y; // Initialize to current position
+                    this.currentBounceHeight = 0; // Reset current bounce height
+                    
+                    // Set a flag to indicate we're tracking a new bounce
+                    this.trackingBounce = true;
+                    
+                    // Display the last valid bounce height while we wait for the new one
+                    if (this.lastBounceHeight > 0) {
+                        this.bounceHeightText.setText(`Bounce Height: ${this.lastBounceHeight}px`);
+                    } else {
+                        // If no last height exists, show current (zero)
+                        this.bounceHeightText.setText(`Bounce Height: ${this.currentBounceHeight}px`);
+                    }
+                    
+                    // Special case: if we're coming from a stomp, maintain momentum
+                    if (this.isStomping) {
+                        console.log('Post-stomp bounce - maintaining momentum');
+                        
+                        // Instead of boosting upward, give a normal bounce with horizontal momentum preservation
+                        // Use a standard bounce height rather than boosting higher
+                        player.body.velocity.y = -400;
+                        
+                        // Don't reduce horizontal velocity after a stomp - maintain momentum
+                        
+                        // Create stronger stomp impact effect
+                        try {
+                            // Create dust particles on impact
+                            const particles = this.add.particles('particle');
+                            if (particles) {
+                                const emitter = particles.createEmitter({
+                                    x: player.x,
+                                    y: player.y + 30,
+                                    speed: { min: 100, max: 300 },
+                                    angle: { min: 0, max: 360 }, // All directions for bigger impact
+                                    scale: { start: 1.5, end: 0 },
+                                    lifespan: 500,
+                                    quantity: 20
+                                });
+                                
+                                // Auto-destroy the emitter
+                                this.time.delayedCall(500, () => {
+                                    emitter.stop();
+                                    particles.destroy();
+                                });
+                            }
+                        } catch (e) {
+                            console.error("Error in groundBounce stomp particles:", e);
+                        }
+                        
+                        // Reset stomp flag
+                        this.isStomping = false;
+                        
+                        // Add "SLAM!" text effect
+                        const slamText = this.add.text(player.x, player.y - 50, 'SLAM!', {
+                            fontSize: '36px',
+                            fill: '#ff0000',
+                            stroke: '#000000',
+                            strokeThickness: 5
+                        }).setOrigin(0.5).setDepth(50);
+                        
+                        this.tweens.add({
+                            targets: slamText,
+                            alpha: 0,
+                            y: slamText.y - 100,
+                            duration: 800,
+                            onComplete: function() { slamText.destroy(); }
+                        });
+                        
+                        return;
+                    }
+                    
+                    // Regular bounce (non-stomp) - check if we should end the game (velocity too low)
+                    const minBouncingVelocity = 200;
+                    if (impactVelocity < minBouncingVelocity) {
+                        console.log(`Game over - velocity too low to bounce: ${impactVelocity}`);
+                        this.endGame();
+                        return;
+                    }
+                    
+                    // For significant bounces
+                    if (impactVelocity > 200) {
+                        try {
+                            // Create dust particles on impact
+                            const particles = this.add.particles('particle');
+                            if (particles) {
+                                const emitter = particles.createEmitter({
+                                    x: player.x,
+                                    y: player.y + 30,
+                                    speed: { min: 50, max: 150 },
+                                    angle: { min: 230, max: 310 },
+                                    scale: { start: 1, end: 0 },
+                                    lifespan: 300,
+                                    quantity: Math.min(Math.floor(impactVelocity / 100), 10)
+                                });
+                                
+                                // Auto-destroy the emitter
+                                this.time.delayedCall(300, () => {
+                                    emitter.stop();
+                                    particles.destroy();
+                                });
+                            }
+                        } catch (e) {
+                            console.error("Error in groundBounce particles:", e);
+                        }
+                        
+                        // Calculate bounce velocity based on impact, but ensure minimum bounce height
+                        let bounceVelocity = Math.max(impactVelocity * 0.7, 300);
+                        
+                        // Calculate the velocity needed for minimum bounce height (200px)
+                        // Using the physics formula: h = v²/(2*g) → v = sqrt(2*g*h)
+                        const gravity = this.physics.world.gravity.y;
+                        const minBounceVelocity = Math.sqrt(2 * gravity * this.minBounceHeight);
+                        
+                        // Apply the higher of the two calculated velocities
+                        bounceVelocity = Math.max(bounceVelocity, minBounceVelocity);
+                        
+                        // Set upward velocity
+                        player.body.velocity.y = -bounceVelocity;
+                        
+                        // Play bounce sound (louder for bigger impacts)
+                        console.log(`Bounce sound would play here - impact: ${impactVelocity}, bounce velocity: ${bounceVelocity}`);
+                        
+                        // Slightly reduce horizontal velocity on each bounce but NEVER allow negative (leftward) movement
+                        player.body.velocity.x = Math.max(1, player.body.velocity.x * 0.8);
+                    }
+                }
+                
+                endGame() {
+                    // Set game over flag
+                    this.gameOver = true;
+                    
+                    // Stop the player's movement
+                    this.player.setVelocity(0, 0);
+                    this.player.setAngularVelocity(0);
+                    
+                    // Disable physics to prevent further bouncing
+                    this.player.body.allowGravity = false;
+                    this.player.body.enable = false;
+                    
+                    // Create a game over UI with dark semi-transparent background
+                    const gameOverPanel = this.add.graphics().setDepth(150);
+                    gameOverPanel.fillStyle(0x000000, 0.85);
+                    gameOverPanel.fillRect(0, 0, 800, 600);
+                    gameOverPanel.setScrollFactor(0);
+                    
+                    // Create the red banner background
+                    const redBanner = this.add.graphics().setScrollFactor(0).setDepth(151);
+                    redBanner.fillStyle(0x990000);
+                    redBanner.fillRect(150, 150, 500, 80);
+                    
+                    // Top edge highlight
+                    redBanner.fillStyle(0xcc0000);
+                    redBanner.fillRect(150, 150, 500, 10);
+                    
+                    // Bottom edge shadow
+                    redBanner.fillStyle(0x660000);
+                    redBanner.fillRect(150, 220, 500, 10);
+                    
+                    // Add shine effect
+                    const shine = this.add.graphics().setScrollFactor(0).setDepth(151);
+                    shine.fillStyle(0xffffff, 0.15);
+                    shine.fillRect(200, 170, 400, 10);
+                    shine.setRotation(Math.PI * 0.05);
+                    
+                    // Add filigree decorations
+                    const filigree = this.add.graphics().setScrollFactor(0).setDepth(151);
+                    filigree.lineStyle(3, 0xcc0000, 0.9);
+                    
+                    // Left filigree
+                    filigree.beginPath();
+                    filigree.moveTo(150, 150);
+                    filigree.lineTo(130, 170);
+                    filigree.lineTo(120, 190);
+                    filigree.lineTo(130, 210);
+                    filigree.lineTo(150, 230);
+                    filigree.strokePath();
+                    
+                    // Right filigree
+                    filigree.beginPath();
+                    filigree.moveTo(650, 150);
+                    filigree.lineTo(670, 170);
+                    filigree.lineTo(680, 190);
+                    filigree.lineTo(670, 210);
+                    filigree.lineTo(650, 230);
+                    filigree.strokePath();
+                    
+                    // Game over text
+                    const gameOverText = this.add.text(400, 190, 'GAME OVER', { 
+                        fontFamily: 'Georgia, "Times New Roman", serif',
+                        fontSize: '54px', 
+                        fontWeight: 'bold',
+                        fill: '#663399',
+                        stroke: '#220033',
+                        strokeThickness: 5
+                    }).setOrigin(0.5).setScrollFactor(0).setDepth(152);
+                    
+                    // Display results in a gothic-styled panel
+                    const resultsPanel = this.add.graphics().setScrollFactor(0).setDepth(151);
+                    resultsPanel.fillStyle(0x000033, 0.7);
+                    resultsPanel.lineStyle(3, 0x663399, 0.8);
+                    resultsPanel.fillRoundedRect(250, 250, 300, 160, 10);
+                    resultsPanel.strokeRoundedRect(250, 250, 300, 160, 10);
+                    
+                    // Format distance with commas
+                    const formattedDistance = Math.floor(this.currentDistance)
+                        .toString()
+                        .replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+                    
+                    // Display final distance with a more gothic style
+                    const finalDistanceText = this.add.text(400, 280, `Distance: ${formattedDistance}m`, {
+                        fontFamily: 'Georgia, "Times New Roman", serif',
+                        fontSize: '28px',
+                        fill: '#e0e0e0',
+                        stroke: '#000000',
+                        strokeThickness: 3
+                    }).setOrigin(0.5).setScrollFactor(0).setDepth(152);
+                    
+                    // Display enemies defeated instead of bones
+                    const enemiesDefeatedText = this.add.text(400, 330, `Enemies Defeated: ${this.gummiesCollected}`, {
+                        fontFamily: 'Georgia, "Times New Roman", serif',
+                        fontSize: '28px',
+                        fill: '#cc9900',
+                        stroke: '#000000',
+                        strokeThickness: 3
+                    }).setOrigin(0.5).setScrollFactor(0).setDepth(152);
+                    
+                    // Save current data
+                    gameData.maxDistance = Math.max(gameData.maxDistance, this.currentDistance);
+                    gameData.currency += this.gummiesCollected;  // Add enemies defeated to currency
+                    saveGameData();
+                    
+                    // Add Play Again button
+                    const retryButton = this.add.text(400, 450, 'PLAY AGAIN', { 
+                        fontFamily: 'Georgia, "Times New Roman", serif',
+                        fontSize: '24px', 
+                        fill: '#cc9900',
+                        stroke: '#442200',
+                        strokeThickness: 4,
+                        padding: { x: 20, y: 10 }
+                    }).setOrigin(0.5).setScrollFactor(0).setDepth(152);
+                    
+                    // Make button interactive
+                    retryButton.setInteractive({ useHandCursor: true });
+                    
+                    // Button hover effects
+                    retryButton.on('pointerover', () => {
+                        retryButton.setTint(0xffdd77);
+                    });
+                    
+                    retryButton.on('pointerout', () => {
+                        retryButton.clearTint();
+                    });
+                    
+                    retryButton.on('pointerdown', () => {
+                        console.log('Play Again clicked');
+                        this.scene.restart();
+                    });
+                    
+                    // Add shop button
+                    const shopButton = this.add.text(400, 500, 'UPGRADE SHOP', {
+                        fontFamily: 'Georgia, "Times New Roman", serif',
+                        fontSize: '24px',
+                        fill: '#e0e0e0',
+                        stroke: '#000000',
+                        strokeThickness: 4,
+                        padding: { x: 20, y: 10 }
+                    }).setOrigin(0.5).setScrollFactor(0).setDepth(152);
+                    
+                    // Make button interactive
+                    shopButton.setInteractive({ useHandCursor: true });
+                    
+                    // Button hover effects
+                    shopButton.on('pointerover', () => {
+                        shopButton.setTint(0xffff00);
+                    });
+                    
+                    shopButton.on('pointerout', () => {
+                        shopButton.clearTint();
+                    });
+                    
+                    shopButton.on('pointerdown', () => {
+                        console.log('Upgrade Shop clicked');
+                        this.scene.start('ShopScene');
+                    });
+                    
+                    // Add menu button
+                    const menuButton = this.add.text(400, 550, 'MAIN MENU', {
+                        fontFamily: 'Georgia, "Times New Roman", serif',
+                        fontSize: '24px',
+                        fill: '#e0e0e0',
+                        stroke: '#000000',
+                        strokeThickness: 4,
+                        padding: { x: 20, y: 10 }
+                    }).setOrigin(0.5).setScrollFactor(0).setDepth(152);
+                    
+                    // Make button interactive
+                    menuButton.setInteractive({ useHandCursor: true });
+                    
+                    // Button hover effects
+                    menuButton.on('pointerover', () => {
+                        menuButton.setTint(0xffff00);
+                    });
+                    
+                    menuButton.on('pointerout', () => {
+                        menuButton.clearTint();
+                    });
+                    
+                    menuButton.on('pointerdown', () => {
+                        console.log('Main Menu clicked');
+                        this.scene.start('MenuScene');
+                    });
+                }
+                
+                update() {
+                    // Scroll background based on player movement
+                    if (this.isLaunched) {
+                        this.bg.tilePositionX += this.player.body.velocity.x * 0.01;
+                        // Update the far background at a slower rate for parallax effect
+                        if (this.castleBg) {
+                            this.castleBg.tilePositionX += this.player.body.velocity.x * 0.005;
+                        }
+                    }
+                    
+                    // Track distance and update UI
+                    if (this.isLaunched) {
+                        this.currentDistance = Math.max(this.player.x - 150, this.currentDistance);
+                        
+                        // Format distance with commas for thousands
+                        const formattedDistance = Math.floor(this.currentDistance)
+                            .toString()
+                            .replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+                            
+                        this.distanceText.setText(`Distance: ${formattedDistance}m`);
+                        
+                        // Save max distance
+                        gameData.maxDistance = Math.max(gameData.maxDistance, this.currentDistance);
+                        
+                        // Check if player somehow went below the ground
+                        if (this.player.y > 550) {
+                            console.log(`Player fell below world bounds (y=${this.player.y}), forcing reset`);
+                            this.resetPlayer();
+                        }
+                        
+                        // Log player position every 60 frames (for debug purposes)
+                        if (this.time.frameCount % 60 === 0) {
+                            console.log(`Player position: (${this.player.x.toFixed(0)}, ${this.player.y.toFixed(0)})`);
+                        }
+                    }
+                    
+                    // Update speedometer - just text, no gauge
+                    if (this.player && this.player.body) {
+                        // Enforce maximum speed limit
+                        if (this.player.body.velocity.x > this.maxSpeed) {
+                            this.player.body.velocity.x = this.maxSpeed;
+                        }
+                        
+                        const speed = Math.abs(Math.round(this.player.body.velocity.x));
+                        const maxSpeedPercent = Math.floor((speed / this.maxSpeed) * 100);
+                        this.speedometerText.setText(`Speed: ${speed} (${maxSpeedPercent}% of max)`);
+                        
+                        // Color code text based on speed
+                        if (speed > this.maxSpeed * 0.7) {
+                            this.speedometerText.setColor('#00ff00'); // Green for high speed
+                        } else if (speed > this.maxSpeed * 0.4) {
+                            this.speedometerText.setColor('#ffff00'); // Yellow for medium speed
+                        } else {
+                            this.speedometerText.setColor('#ff0000'); // Red for low speed
+                        }
+                        
+                        // Track bounce height
+                        if (this.trackingBounce) {
+                            // Player is in a bounce trajectory
+                            if (this.player.body.velocity.y < 0) {
+                                // Moving upward, check for highest point
+                                if (this.player.y < this.lowestY) {
+                                    this.lowestY = this.player.y;
+                                    
+                                    // Calculate and update bounce height in real-time
+                                    const currentHeight = Math.floor(this.initialY - this.lowestY);
+                                    if (currentHeight > 5) { // Ignore tiny fluctuations
+                                        this.currentBounceHeight = currentHeight;
+                                        this.bounceHeightText.setText(`Bounce Height: ${currentHeight}px`);
+                                        
+                                        // Also update lastBounceHeight so we don't lose it
+                                        this.lastBounceHeight = currentHeight;
+                                    }
+                                }
+                            } else if (this.player.body.velocity.y > 0 && this.player.y > this.initialY + 20) {
+                                // Player has reached maximum height and is now falling well past the starting point
+                                // Add a little buffer to avoid immediate cancellation
+                                this.trackingBounce = false;
+                            }
+                        }
+                        
+                        // Check if the player has nearly stopped horizontal movement and is on the ground
+                        if (this.isLaunched && !this.gameOver && speed < 50 && this.player.body.touching.down) {
+                            console.log(`Game ending - horizontal speed too low: ${speed}`);
+                            this.endGame();
+                        }
+                    }
+                }
+                
+                resetPlayer() {
+                    console.log('Resetting player');
+                    
+                    // Reset player position with proper ground alignment
+                    const groundTopY = 500;  // Top of the ground
+                    const playerHeight = 70;
+                    const playerY = groundTopY - (playerHeight / 2);
+                    
+                    console.log(`Resetting player to y=${playerY}`);
+                    
+                    this.player.setPosition(150, playerY);
+                    this.player.setVelocity(0, 0);
+                    this.player.setAngularVelocity(0);
+                    this.player.setRotation(0);
+                    
+                    // Reset game state
+                    this.isLaunched = false;
+                    this.canLaunch = true;
+                    this.physics.world.gravity.y = 300; // Reset to initial gravity
+                    
+                    // Reset camera
+                    this.cameras.main.scrollX = 0;
+                    
+                    // Re-setup input handlers
+                    this.input.off('pointerdown');
+                    this.setupInputHandlers();
+                    
+                    // Save game data
+                    saveGameData();
+                    
+                    console.log('Player reset complete');
+                }
+                
+                updateHUD() {
+                    // Update currency text
+                    this.currencyText.setText(`${gameData.currency} BONES`);
+                }
+                
+                updateAimLine(pointer) {
+                    this.aimLine.clear();
+                    this.aimLine.lineStyle(4, 0xff0000);
+                    this.aimLine.lineBetween(this.player.x, this.player.y, pointer.x, pointer.y);
+                }
+                
+                hitObstacle(player, obstacle) {
+                    // Add bounce effect
+                    const bounceVelocity = player.body.velocity.length() * 0.5;
+                    obstacle.setVelocity(
+                        Phaser.Math.Between(-100, 100),
+                        Phaser.Math.Between(-200, -100)
+                    );
+                    
+                    // Add a temporary tint to the enemy
+                    obstacle.setTint(0xff0000);
+                    this.time.delayedCall(200, () => obstacle.clearTint());
+                    
+                    // Add horizontal velocity to ensure player keeps moving right
+                    if (player.body.velocity.x < 300) {
+                        player.body.velocity.x = Math.max(player.body.velocity.x, 300);
+                    }
+                    
+                    try {
+                        // Create impact particles
+                        const particles = this.add.particles('particle');
+                        if (particles) {
+                            const emitter = particles.createEmitter({
+                                x: obstacle.x,
+                                y: obstacle.y,
+                                speed: { min: 50, max: 200 },
+                                scale: { start: 1, end: 0 },
+                                lifespan: 300,
+                                quantity: 10
+                            });
+                            
+                            // Auto-destroy the emitter
+                            this.time.delayedCall(300, () => {
+                                emitter.stop();
+                                particles.destroy();
+                            });
+                        }
+                    } catch (e) {
+                        console.error("Error in hitObstacle particles:", e);
+                    }
+                    
+                    // Play sound
+                    console.log('Bounce sound would play here');
+                }
+                
+                collectGummy(player, gummy) {
+                    // If already hit or in the process of being hit, do nothing
+                    if (gummy.data && gummy.data.values.hit) {
+                        return;
+                    }
+                    
+                    // Set the gummy as hit
+                    gummy.setData('hit', true);
+                    
+                    // Get gummy color from its texture (used for particle effects)
+                    let gummyKey = gummy.texture.key;
+                    let gummyColorHex = '#FFFFFF'; // Default white
+                    if (gummyKey === 'gummyBear0') gummyColorHex = '#FF0000';
+                    else if (gummyKey === 'gummyBear1') gummyColorHex = '#00FF00';
+                    else if (gummyKey === 'gummyBear2') gummyColorHex = '#0000FF';
+                    else if (gummyKey === 'gummyBear3') gummyColorHex = '#FFFF00';
+                    
+                    // Determine if it's a skeleton or goblin
+                    const isGoblin = gummyKey.endsWith('1') || gummyKey.endsWith('3');
+                    
+                    // Increment the gummy counter and currency
+                    this.gummiesCollected++;
+                    if (this.gameData) {
+                        // Add more currency for skeletons (harder to hit)
+                        if (isGoblin) {
+                            this.gameData.currency += 15;
+                        } else {
+                            this.gameData.currency += 25;
+                        }
+                    }
+                    
+                    // Update HUD
+                    this.updateGummyCounter();
+                    this.updateHUD();
+                    
+                    // Play a sound effect if available
+                    // if (this.sound.get('collectSound')) {
+                    //     this.sound.play('collectSound', { volume: 0.3 });
+                    // }
+                    
+                    // Add bounce based on which direction the player is coming from
+                    const fromAbove = player.body.velocity.y > 0 && player.y < gummy.y;
+                    const fromBelow = player.body.velocity.y < 0 && player.y > gummy.y;
+                    const fromLeft = player.body.velocity.x > 0 && player.x < gummy.x;
+                    const fromRight = player.body.velocity.x < 0 && player.x > gummy.x;
+                    
+                    if (fromAbove) {
+                        // Coming from above - bounce up, maintain x velocity
+                        // Start bounce height tracking
+                        this.initialY = player.y;
+                        this.lowestY = player.y;
+                        this.trackingBounce = true;
+                        
+                        // Calculate and apply minimum bounce height (same as groundBounce)
+                        const bounceVelocity = Math.abs(player.body.velocity.y);
+                        const gravity = this.physics.world.gravity.y;
+                        const minBounceVelocity = Math.sqrt(2 * gravity * this.minBounceHeight);
+                        
+                        // Apply the minimum bounce velocity
+                        player.body.velocity.y = -Math.max(bounceVelocity, minBounceVelocity);
+                    } else if (fromBelow) {
+                        // Coming from below - bounce down
+                        player.body.velocity.y = Math.abs(player.body.velocity.y);
+                    } else if (fromLeft) {
+                        // Coming from left - maintain forward momentum (no boosting)
+                        player.body.velocity.x = Math.abs(player.body.velocity.x);
+                    } else if (fromRight) {
+                        // Coming from right - maintain forward momentum
+                        player.body.velocity.x = Math.abs(player.body.velocity.x);
+                    }
+                    
+                    // Create an explosion of particles with colors matching the enemy
+                    try {
+                        const x = gummy.x;
+                        const y = gummy.y;
+                        
+                        // Create a particle emitter for the enemy death effect
+                        const particles = this.add.particles(x, y, 'pixel', {
+                            speed: { min: 150, max: 300 },
+                            angle: { min: 0, max: 360 },
+                            scale: { start: 1, end: 0 },
+                            lifespan: 800,
+                            gravityY: 400,
+                            quantity: 1,
+                            frequency: 30,
+                            tint: [ parseInt(gummyColorHex.substring(1), 16) ]
+                        });
+                        
+                        // Create bone fragments if it's a skeleton
+                        if (!isGoblin) {
+                            // Create bone particle effect
+                            const boneParticles = this.add.particles(x, y, 'pixel', {
+                                speed: { min: 100, max: 250 },
+                                angle: { min: 0, max: 360 },
+                                scale: { start: 3, end: 2 },
+                                lifespan: 1000,
+                                gravityY: 500,
+                                quantity: 20,
+                                frequency: -1, // Explode all at once
+                                tint: [ 0xEEEEEE ] // Bone white color
+                            });
+                            
+                            // Create a skull that flies upward
+                            const skull = this.add.circle(x, y, 10, 0xEEEEEE);
+                            this.physics.add.existing(skull);
+                            skull.body.setVelocity(Phaser.Math.Between(-100, 100), -200);
+                            skull.body.setGravityY(500);
+                            
+                            // Remove the skull after 1.5 seconds
+                            this.time.delayedCall(1500, () => {
+                                skull.destroy();
+                            });
+                            
+                            // Stop emitter after a short time
+                            this.time.delayedCall(100, () => {
+                                if (boneParticles && boneParticles.emitters && boneParticles.emitters.first) {
+                                    boneParticles.emitters.first.stop();
+                                } else if (boneParticles) {
+                                    console.error('Bone particles exist but emitters not accessible');
+                                }
+                            });
+                            
+                            // Destroy the bone particle emitter after all particles are gone
+                            this.time.delayedCall(1100, () => {
+                                boneParticles.destroy();
+                            });
+                        } else {
+                            // Create goblin blood particle effect (green)
+                            const bloodParticles = this.add.particles(x, y, 'pixel', {
+                                speed: { min: 100, max: 250 },
+                                angle: { min: 0, max: 360 },
+                                scale: { start: 2, end: 1 },
+                                lifespan: 1000,
+                                gravityY: 500,
+                                quantity: 30,
+                                frequency: -1, // Explode all at once
+                                tint: [ 0x2ecc71 ] // Green goblin blood
+                            });
+                            
+                            // Stop emitter after a short time
+                            this.time.delayedCall(100, () => {
+                                if (bloodParticles && bloodParticles.emitters && bloodParticles.emitters.first) {
+                                    bloodParticles.emitters.first.stop();
+                                } else if (bloodParticles) {
+                                    console.error('Blood particles exist but emitters not accessible');
+                                }
+                            });
+                            
+                            // Destroy the blood particle emitter after all particles are gone
+                            this.time.delayedCall(1100, () => {
+                                bloodParticles.destroy();
+                            });
+                        }
+                        
+                        // Stop the burst emitter after a short time
+                        this.time.delayedCall(100, () => {
+                            if (particles && particles.emitters && particles.emitters.first) {
+                                particles.emitters.first.stop();
+                            } else if (particles) {
+                                console.error('Particles exist but emitters not accessible');
+                            }
+                        });
+                        
+                        // Destroy the particle emitter after all particles are gone
+                        this.time.delayedCall(900, () => {
+                            particles.destroy();
+                        });
+                        
+                        // Add "SMASH" text effect
+                        const smashText = this.add.text(x, y - 30, isGoblin ? 'SQUISH!' : 'SHATTER!', {
+                            fontFamily: 'Arial',
+                            fontSize: '24px',
+                            fontStyle: 'bold',
+                            color: isGoblin ? '#2ecc71' : '#EEEEEE',
+                            stroke: '#000000',
+                            strokeThickness: 4
+                        }).setOrigin(0.5);
+                        
+                        // Animate the text moving up and fading out
+                        this.tweens.add({
+                            targets: smashText,
+                            y: y - 80,
+                            alpha: 0,
+                            duration: 800,
+                            ease: 'Power1',
+                            onComplete: function() {
+                                smashText.destroy();
+                            }
+                        });
+                        
+                        // Add floating currency text
+                        const amount = isGoblin ? '+15' : '+25';
+                        const floatingText = this.add.text(x, y + 10, amount, {
+                            fontFamily: 'Arial',
+                            fontSize: '20px',
+                            fontStyle: 'bold',
+                            color: '#ffff00',
+                            stroke: '#000000',
+                            strokeThickness: 3
+                        }).setOrigin(0.5);
+                        
+                        // Animate the currency text
+                        this.tweens.add({
+                            targets: floatingText,
+                            y: y - 40,
+                            alpha: 0,
+                            duration: 1000,
+                            delay: 300,
+                            ease: 'Power1',
+                            onComplete: function() {
+                                floatingText.destroy();
+                            }
+                        });
+                        
+                    } catch (e) {
+                        console.error('Error creating squish particles:', e);
+                    }
+                    
+                    // Instead of transforming into a disk, directly destroy the enemy
+                    gummy.destroy();
+                }
+                
+                updateGummyCounter() {
+                    if (this.gummyCounterText) {
+                        this.gummyCounterText.setText(`Enemies Defeated: ${this.gummiesCollected}`);
+                    }
+                }
+            }
+            
+            // Simple Shop Scene
+            class ShopScene extends Phaser.Scene {
+                constructor() {
+                    super('ShopScene');
+                }
+                
+                create() {
+                    console.log('ShopScene: create started');
+                    
+                    // Base prices for each upgrade type
+                    this.basePrices = {
+                        power: 50,
+                        bounce: 75,
+                        stompPower: 100,
+                        stompCooldown: 125
+                    };
+                    
+                    // Add background
+                    this.add.image(400, 300, 'shopBackground');
+                    
+                    // Add title
+                    this.add.text(400, 80, 'UPGRADE SHOP', { 
+                        fontSize: '48px', 
+                        fill: '#fff',
+                        stroke: '#000',
+                        strokeThickness: 4
+                    }).setOrigin(0.5);
+                    
+                    // Display player stats
+                    this.add.text(400, 140, `Distance Record: ${Math.floor(gameData.maxDistance)}m`, { 
+                        fontSize: '24px', 
+                        fill: '#fff',
+                    }).setOrigin(0.5);
+                    
+                    // Add currency display with gummy icon
+                    const gummyIcon = this.add.circle(320, 180, 15, 0xEEEEEE);
+                    this.currencyText = this.add.text(340, 180, `${gameData.currency} BONES`, { 
+                        fontSize: '28px', 
+                        fill: '#ffff00',
+                        stroke: '#000',
+                        strokeThickness: 2
+                    });
+                    
+                    // Create upgrade buttons
+                    this.createUpgradeButton(250, 250, 'LAUNCH POWER', 'power', 
+                        'Increases initial launch velocity\nand bounce height');
+                    
+                    this.createUpgradeButton(550, 250, 'BOUNCE POWER', 'bounce',
+                        'Increases bounce height when\nhitting ground or gummies');
+                    
+                    this.createUpgradeButton(250, 380, 'SLAM POWER', 'stompPower',
+                        'Increases downward force\nwhen using slam ability');
+                    
+                    this.createUpgradeButton(550, 380, 'SLAM COOLDOWN', 'stompCooldown',
+                        'Reduces time between\nslam ability uses');
+                    
+                    // Add back button
+                    const backButton = this.add.text(400, 520, 'BACK TO MENU', { 
+                        fontSize: '32px', 
+                        fill: '#fff',
+                        backgroundColor: '#3498db',
+                        padding: { x: 20, y: 10 }
+                    }).setOrigin(0.5);
+                    
+                    backButton.setInteractive({ useHandCursor: true });
+                    
+                    backButton.on('pointerover', () => {
+                        backButton.setScale(1.1);
+                    });
+                    
+                    backButton.on('pointerout', () => {
+                        backButton.setScale(1);
+                    });
+                    
+                    backButton.on('pointerdown', () => {
+                        this.scene.start('MenuScene');
+                    });
+                    
+                    // Add play game button
+                    const playButton = this.add.text(620, 520, 'PLAY GAME', { 
+                        fontSize: '32px', 
+                        fill: '#fff',
+                        backgroundColor: '#2ecc71',
+                        padding: { x: 20, y: 10 }
+                    }).setOrigin(0.5);
+                    
+                    playButton.setInteractive({ useHandCursor: true });
+                    
+                    playButton.on('pointerover', () => {
+                        playButton.setScale(1.1);
+                    });
+                    
+                    playButton.on('pointerout', () => {
+                        playButton.setScale(1);
+                    });
+                    
+                    playButton.on('pointerdown', () => {
+                        this.scene.start('GameScene');
+                    });
+                }
+                
+                createUpgradeButton(x, y, label, upgradeType, description) {
+                    // Get current level and calculate cost
+                    const currentLevel = gameData.upgrades[upgradeType];
+                    const cost = this.basePrices[upgradeType] * currentLevel;
+                    
+                    // Create button background
+                    const buttonBg = this.add.rectangle(x, y, 280, 100, 0x2c3e50)
+                        .setStrokeStyle(2, 0x3498db);
+                    
+                    // Add label
+                    const titleText = this.add.text(x, y - 30, label, {
+                        fontSize: '22px',
+                        fill: '#ffffff',
+                        fontStyle: 'bold'
+                    }).setOrigin(0.5);
+                    
+                    // Add level display
+                    const levelText = this.add.text(x, y, `Level: ${currentLevel}`, {
+                        fontSize: '20px',
+                        fill: '#3498db'
+                    }).setOrigin(0.5);
+                    
+                    // Add cost
+                    const costText = this.add.text(x, y + 25, `Cost: ${cost} gummies`, {
+                        fontSize: '18px',
+                        fill: '#ffff00'
+                    }).setOrigin(0.5);
+                    
+                    // Add tooltip with description
+                    const tooltip = this.add.text(x, y + 100, description, {
+                        fontSize: '14px',
+                        fill: '#bbbbbb',
+                        align: 'center'
+                    }).setOrigin(0.5).setAlpha(0);
+                    
+                    // Make button interactive
+                    buttonBg.setInteractive({ useHandCursor: true });
+                    
+                    buttonBg.on('pointerover', () => {
+                        buttonBg.setFillStyle(0x34495e);
+                        tooltip.setAlpha(1);
+                    });
+                    
+                    buttonBg.on('pointerout', () => {
+                        buttonBg.setFillStyle(0x2c3e50);
+                        tooltip.setAlpha(0);
+                    });
+                    
+                    buttonBg.on('pointerdown', () => {
+                        this.tryUpgrade(upgradeType, cost, levelText, costText, buttonBg);
+                    });
+                }
+                
+                tryUpgrade(upgradeType, cost, levelText, costText, buttonBg) {
+                    // Check if player has enough currency
+                    if (gameData.currency >= cost) {
+                        // Deduct cost and apply upgrade
+                        gameData.currency -= cost;
+                        gameData.upgrades[upgradeType]++;
+                        
+                        // Update UI
+                        this.currencyText.setText(`${gameData.currency} GUMMIES`);
+                        levelText.setText(`Level: ${gameData.upgrades[upgradeType]}`);
+                        
+                        // Update cost for next level
+                        const newCost = this.basePrices[upgradeType] * gameData.upgrades[upgradeType];
+                        costText.setText(`Cost: ${newCost} gummies`);
+                        
+                        // Visual feedback
+                        this.tweens.add({
+                            targets: buttonBg,
+                            scaleX: 1.1,
+                            scaleY: 1.1,
+                            duration: 100,
+                            yoyo: true,
+                            ease: 'Quad.easeInOut'
+                        });
+                        
+                        // Create upgrade effect
+                        const particles = this.add.particles('particle');
+                        const emitter = particles.createEmitter({
+                            x: buttonBg.x,
+                            y: buttonBg.y,
+                            speed: { min: 100, max: 200 },
+                            scale: { start: 0.6, end: 0 },
+                            lifespan: 800,
+                            blendMode: 'ADD',
+                            quantity: 20
+                        });
+                        
+                        // Auto-destroy particle system after 1 second
+                        this.time.delayedCall(1000, () => {
+                            particles.destroy();
+                        });
+                        
+                        // Save game data
+                        saveGameData();
+                    } else {
+                        // Not enough currency
+                        this.tweens.add({
+                            targets: costText,
+                            scaleX: 1.2,
+                            scaleY: 1.2,
+                            duration: 100,
+                            yoyo: true,
+                            repeat: 3,
+                            ease: 'Quad.easeInOut'
+                        });
+                        
+                        buttonBg.setStrokeStyle(2, 0xff0000);
+                        this.time.delayedCall(500, () => {
+                            buttonBg.setStrokeStyle(2, 0x3498db);
+                        });
+                    }
+                }
+            }
+            
+            // Game configuration
+            const config = {
+                type: Phaser.AUTO,
+                width: 800,
+                height: 600,
+                parent: 'game-container',
+                physics: {
+                    default: 'arcade',
+                    arcade: {
+                        gravity: { y: 300 },
+                        debug: false // Set to true to visualize physics bodies
+                    }
+                },
+                scene: [MenuScene, GameScene, ShopScene]
+            };
+            
+            // Create and store game instance
+            const game = new Phaser.Game(config);
+            
+            // Add error handling
+            window.addEventListener('error', function(e) {
+                console.error('Game error:', e.message);
+                alert('Game error: ' + e.message + '\nCheck console for details.');
+                return false;
+            });
+            
+            console.log('Game initialized');
+        };
+    </script>
+</body>
+</html> 
